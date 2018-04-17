@@ -8,14 +8,14 @@ Tags: concurrency, pipelines, cancellation
 
 Sameer Ajmani
 
-* Introduction
+## Introduction
 
 Go's concurrency primitives make it easy to construct streaming data pipelines
 that make efficient use of I/O and multiple CPUs.  This article presents
 examples of such pipelines, highlights subtleties that arise when operations
 fail, and introduces techniques for dealing with failures cleanly.
 
-* What is a pipeline?
+## What is a pipeline?
 
 There's no formal definition of a pipeline in Go; it's just one of many kinds of
 concurrent programs.  Informally, a pipeline is a series of _stages_ connected
@@ -34,7 +34,7 @@ _producer_; the last stage, the _sink_ or _consumer_.
 We'll begin with a simple example pipeline to explain the ideas and techniques.
 Later, we'll present a more realistic example.
 
-* Squaring numbers
+## Squaring numbers
 
 Consider a pipeline with three stages.
 
@@ -63,7 +63,7 @@ range loop, like the other stages:
 
 .code pipelines/square2.go /func main/,/^}/
 
-* Fan-out, fan-in
+## Fan-out, fan-in
 
 Multiple functions can read from the same channel until that channel is closed;
 this is called _fan-out_. This provides a way to distribute work amongst a group
@@ -92,7 +92,7 @@ provides a simple way to arrange this synchronization:
 
 .code pipelines/sqfan.go /func merge/,/^}/
 
-* Stopping short
+## Stopping short
 
 There is a pattern to our pipeline functions:
 
@@ -151,7 +151,7 @@ reads any fewer values, we will again have blocked goroutines.
 Instead, we need to provide a way for downstream stages to indicate to the
 senders that they will stop accepting input.
 
-* Explicit cancellation
+## Explicit cancellation
 
 When `main` decides to exit without receiving all the values from
 `out`, it must tell the goroutines in the upstream stages to abandon
@@ -211,27 +211,27 @@ Pipelines unblock senders either by ensuring there's enough buffer for all the
 values that are sent or by explicitly signalling senders when the receiver may
 abandon the channel.
 
-* Digesting a tree
+## Digesting a tree
 
 Let's consider a more realistic pipeline.
 
 MD5 is a message-digest algorithm that's useful as a file checksum.  The command
 line utility `md5sum` prints digest values for a list of files.
-
+```
 	% md5sum *.go
 	d47c2bbc28298ca9befdfbc5d3aa4e65  bounded.go
 	ee869afd31f83cbb2d10ee81b2b831dc  parallel.go
 	b88175e65fdcbc01ac08aaf1fd9b5e96  serial.go
-
+```
 Our example program is like `md5sum` but instead takes a single directory as an
 argument and prints the digest values for each regular file under that
 directory, sorted by path name.
-
+```
 	% go run serial.go .
 	d47c2bbc28298ca9befdfbc5d3aa4e65  bounded.go
 	ee869afd31f83cbb2d10ee81b2b831dc  parallel.go
 	b88175e65fdcbc01ac08aaf1fd9b5e96  serial.go
-
+```
 The main function of our program invokes a helper function `MD5All`, which
 returns a map from path name to digest value, then sorts and prints the results:
 
@@ -243,7 +243,7 @@ simply reads and sums each file as it walks the tree.
 
 .code pipelines/serial.go /MD5All/,/^}/
 
-* Parallel digestion
+## Parallel digestion
 
 In [[pipelines/parallel.go][parallel.go]], we split `MD5All` into a two-stage
 pipeline.  The first stage, `sumFiles`, walks the tree, digests each file in
@@ -263,7 +263,7 @@ closing `done` via a `defer`:
 
 .code pipelines/parallel.go /func MD5All/,/^}/  HLdone
 
-* Bounded parallelism
+## Bounded parallelism
 
 The `MD5All` implementation in [[pipelines/parallel.go][parallel.go]]
 starts a new goroutine for each file. In a directory with many large
@@ -300,7 +300,7 @@ this point, `walkFiles` may block sending values downstream:
 
 .code pipelines/bounded.go /m := make/,/^}/ HLerrc
 
-* Conclusion
+## Conclusion
 
 This article has presented techniques for constructing streaming data pipelines
 in Go.  Dealing with failures in such pipelines is tricky, since each stage in
