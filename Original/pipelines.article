@@ -1,7 +1,3 @@
-# Go-pipelines
-Перевод https://blog.golang.org/pipelines
-
-
 Go Concurrency Patterns: Pipelines and cancellation
 13 Mar 2014
 Tags: concurrency, pipelines, cancellation
