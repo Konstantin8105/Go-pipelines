@@ -1,21 +1,17 @@
-# Go-pipelines
+# Паттерны параллельного программирования(concurrency) Go: Конвееры и отмена
 Перевод https://blog.golang.org/pipelines
 
-
-Go Concurrency Patterns: Pipelines and cancellation
 13 Mar 2014
+
 Tags: concurrency, pipelines, cancellation
 
 Sameer Ajmani
 
-## Introduction
+## Введение
 
-Go's concurrency primitives make it easy to construct streaming data pipelines
-that make efficient use of I/O and multiple CPUs.  This article presents
-examples of such pipelines, highlights subtleties that arise when operations
-fail, and introduces techniques for dealing with failures cleanly.
+Примитивы параллельного программирования(concurrency) Go упрощают создание потоковых конвейеров данных, которые эффективно используют I/O и несколько процессоров. В этой статье представлены примеры таких конвейеров, освещаются тонкости, возникающие при сбоях в работе, и внедряются методы для устранения сбоев.
 
-## What is a pipeline?
+## Что такое конвейер(pipeline)?
 
 There's no formal definition of a pipeline in Go; it's just one of many kinds of
 concurrent programs.  Informally, a pipeline is a series of _stages_ connected
