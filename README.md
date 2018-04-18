@@ -211,13 +211,9 @@ func merge(cs ...<-chan int) <-chan int {
 
 Вместо этого нам необходимо предоставить путь для последующих этапов, чтобы указать отправителям, что они перестанут принимать входные данные.
 
-## Explicit cancellation
+## Явная отмена
 
-When `main` decides to exit without receiving all the values from
-`out`, it must tell the goroutines in the upstream stages to abandon
-the values they're trying it send.  It does so by sending values on a
-channel called `done`.  It sends two values since there are
-potentially two blocked senders:
+When `main` decides to exit without receiving all the values from `out`, it must tell the goroutines in the upstream stages to abandon the values they're trying it send.  It does so by sending values on a channel called `done`.  It sends two values since there are potentially two blocked senders:
 
 ```golang
 func main() {
@@ -239,13 +235,7 @@ func main() {
 ```
 [`Смотри исходный код`](https://github.com/Konstantin8105/Go-pipelines/blob/master/pipelines/sqdone1.go)
 
-The sending goroutines replace their send operation with a `select` statement
-that proceeds either when the send on `out` happens or when they receive a value
-from `done`.  The value type of `done` is the empty struct because the value
-doesn't matter: it is the receive event that indicates the send on `out` should
-be abandoned.  The `output` goroutines continue looping on their inbound
-channel, `c`, so the upstream stages are not blocked. (We'll discuss in a moment
-how to allow this loop to return early.)
+The sending goroutines replace their send operation with a `select` statement that proceeds either when the send on `out` happens or when they receive a value from `done`.  The value type of `done` is the empty struct because the value doesn't matter: it is the receive event that indicates the send on `out` should be abandoned.  The `output` goroutines continue looping on their inbound channel, `c`, so the upstream stages are not blocked. (We'll discuss in a moment how to allow this loop to return early.)
 
 ```golang
 func merge(done <-chan struct{}, cs ...<-chan int) <-chan int {
@@ -282,21 +272,11 @@ func merge(done <-chan struct{}, cs ...<-chan int) <-chan int {
 ```
 [`Смотри исходный код`](https://github.com/Konstantin8105/Go-pipelines/blob/master/pipelines/sqdone1.go)
 
-This approach has a problem: _each_ downstream receiver needs to know the number
-of potentially blocked upstream senders and arrange to signal those senders on
-early return.  Keeping track of these counts is tedious and error-prone.
+This approach has a problem: _each_ downstream receiver needs to know the number of potentially blocked upstream senders and arrange to signal those senders on early return.  Keeping track of these counts is tedious and error-prone.
 
-We need a way to tell an unknown and unbounded number of goroutines to
-stop sending their values downstream.  In Go, we can do this by
-closing a channel, because
-[a receive operation on a closed channel can always proceed immediately, yielding the element type's zero value.](http://golang.org/ref/spec#Receive_operator)
+We need a way to tell an unknown and unbounded number of goroutines to stop sending their values downstream.  In Go, we can do this by closing a channel, because [a receive operation on a closed channel can always proceed immediately, yielding the element type's zero value.](http://golang.org/ref/spec#Receive_operator)
 
-This means that `main` can unblock all the senders simply by closing
-the `done` channel.  This close is effectively a broadcast signal to
-the senders.  We extend _each_ of our pipeline functions to accept
-`done` as a parameter and arrange for the close to happen via a
-`defer` statement, so that all return paths from `main` will signal
-the pipeline stages to exit.
+This means that `main` can unblock all the senders simply by closing the `done` channel.  This close is effectively a broadcast signal to the senders.  We extend _each_ of our pipeline functions to accept `done` as a parameter and arrange for the close to happen via a `defer` statement, so that all return paths from `main` will signal the pipeline stages to exit.
 
 ```golang
 func main() {
@@ -322,10 +302,7 @@ func main() {
 [`Смотри исходный код`](https://github.com/Konstantin8105/Go-pipelines/blob/master/pipelines/sqdone3.go)
 
 Each of our pipeline stages is now free to return as soon as `done` is closed.
-The `output` routine in `merge` can return without draining its inbound channel,
-since it knows the upstream sender, `sq`, will stop attempting to send when
-`done` is closed.  `output` ensures `wg.Done` is called on all return paths via
-a `defer` statement:
+The `output` routine in `merge` can return without draining its inbound channel, since it knows the upstream sender, `sq`, will stop attempting to send when `done` is closed.  `output` ensures `wg.Done` is called on all return paths via a `defer` statement:
 
 ```golang
 func merge(done <-chan struct{}, cs ...<-chan int) <-chan int {
@@ -363,8 +340,7 @@ func merge(done <-chan struct{}, cs ...<-chan int) <-chan int {
 ```
 [`Смотри исходный код`](https://github.com/Konstantin8105/Go-pipelines/blob/master/pipelines/sqdone3.go)
 
-Similarly, `sq` can return as soon as `done` is closed.  `sq` ensures its `out`
-channel is closed on all return paths via a `defer` statement:
+Similarly, `sq` can return as soon as `done` is closed.  `sq` ensures its `out` channel is closed on all return paths via a `defer` statement:
 
 ```golang
 func sq(done <-chan struct{}, in <-chan int) <-chan int {
@@ -389,33 +365,27 @@ Here are the guidelines for pipeline construction:
 - stages close their outbound channels when all the send operations are done.
 - stages keep receiving values from inbound channels until those channels are closed or the senders are unblocked.
 
-Pipelines unblock senders either by ensuring there's enough buffer for all the
-values that are sent or by explicitly signalling senders when the receiver may
-abandon the channel.
+Pipelines unblock senders either by ensuring there's enough buffer for all the values that are sent or by explicitly signalling senders when the receiver may abandon the channel.
 
 ## Digesting a tree
 
 Let's consider a more realistic pipeline.
 
-MD5 is a message-digest algorithm that's useful as a file checksum.  The command
-line utility `md5sum` prints digest values for a list of files.
+MD5 is a message-digest algorithm that's useful as a file checksum.  The command line utility `md5sum` prints digest values for a list of files.
 ```
 	% md5sum *.go
 	d47c2bbc28298ca9befdfbc5d3aa4e65  bounded.go
 	ee869afd31f83cbb2d10ee81b2b831dc  parallel.go
 	b88175e65fdcbc01ac08aaf1fd9b5e96  serial.go
 ```
-Our example program is like `md5sum` but instead takes a single directory as an
-argument and prints the digest values for each regular file under that
-directory, sorted by path name.
+Our example program is like `md5sum` but instead takes a single directory as an argument and prints the digest values for each regular file under that directory, sorted by path name.
 ```
 	% go run serial.go .
 	d47c2bbc28298ca9befdfbc5d3aa4e65  bounded.go
 	ee869afd31f83cbb2d10ee81b2b831dc  parallel.go
 	b88175e65fdcbc01ac08aaf1fd9b5e96  serial.go
 ```
-The main function of our program invokes a helper function `MD5All`, which
-returns a map from path name to digest value, then sorts and prints the results:
+The main function of our program invokes a helper function `MD5All`, which returns a map from path name to digest value, then sorts and prints the results:
 
 ```golang
 func main() {
@@ -438,9 +408,7 @@ func main() {
 ```
 [`Смотри исходный код`](https://github.com/Konstantin8105/Go-pipelines/blob/master/pipelines/serial.go)
 
-The `MD5All` function is the focus of our discussion.  In
-[[pipelines/serial.go][serial.go]], the implementation uses no concurrency and
-simply reads and sums each file as it walks the tree.
+The `MD5All` function is the focus of our discussion.  In [[pipelines/serial.go][serial.go]], the implementation uses no concurrency and simply reads and sums each file as it walks the tree.
 
 ```golang
 func MD5All(root string) (map[string][md5.Size]byte, error) {
@@ -469,9 +437,7 @@ func MD5All(root string) (map[string][md5.Size]byte, error) {
 
 ## Parallel digestion
 
-In [[pipelines/parallel.go][parallel.go]], we split `MD5All` into a two-stage
-pipeline.  The first stage, `sumFiles`, walks the tree, digests each file in
-a new goroutine, and sends the results on a channel with value type `result`:
+In [[pipelines/parallel.go][parallel.go]], we split `MD5All` into a two-stage pipeline.  The first stage, `sumFiles`, walks the tree, digests each file in a new goroutine, and sends the results on a channel with value type `result`:
 
 ```golang
 // A result is the product of reading and summing a file using MD5.
@@ -483,10 +449,7 @@ type result struct {
 ```
 [`Смотри исходный код`](https://github.com/Konstantin8105/Go-pipelines/blob/master/pipelines/parallel.go)
 
-`sumFiles` returns two channels: one for the `results` and another for the error
-returned by `filepath.Walk`.  The walk function starts a new goroutine to
-process each regular file, then checks `done`.  If `done` is closed, the walk
-stops immediately:
+`sumFiles` returns two channels: one for the `results` and another for the error returned by `filepath.Walk`.  The walk function starts a new goroutine to process each regular file, then checks `done`.  If `done` is closed, the walk stops immediately:
 
 ```golang
 func sumFiles(done <-chan struct{}, root string) (<-chan result, <-chan error) {
@@ -534,8 +497,7 @@ func sumFiles(done <-chan struct{}, root string) (<-chan result, <-chan error) {
 ```
 [`Смотри исходный код`](https://github.com/Konstantin8105/Go-pipelines/blob/master/pipelines/parallel.go)
 
-`MD5All` receives the digest values from `c`.  `MD5All` returns early on error,
-closing `done` via a `defer`:
+`MD5All` receives the digest values from `c`.  `MD5All` returns early on error, closing `done` via a `defer`:
 
 ```golang
 func MD5All(root string) (map[string][md5.Size]byte, error) {
@@ -563,15 +525,9 @@ func MD5All(root string) (map[string][md5.Size]byte, error) {
 
 ## Bounded parallelism
 
-The `MD5All` implementation in [[pipelines/parallel.go][parallel.go]]
-starts a new goroutine for each file. In a directory with many large
-files, this may allocate more memory than is available on the machine.
+The `MD5All` implementation in [[pipelines/parallel.go][parallel.go]] starts a new goroutine for each file. In a directory with many large files, this may allocate more memory than is available on the machine.
 
-We can limit these allocations by bounding the number of files read in
-parallel.  In [[pipelines/bounded.go][bounded.go]], we do this by
-creating a fixed number of goroutines for reading files.  Our pipeline
-now has three stages: walk the tree, read and digest the files, and
-collect the digests.
+We can limit these allocations by bounding the number of files read in parallel.  In [[pipelines/bounded.go][bounded.go]], we do this by creating a fixed number of goroutines for reading files.  Our pipeline now has three stages: walk the tree, read and digest the files, and collect the digests.
 
 The first stage, `walkFiles`, emits the paths of regular files in the tree:
 
@@ -603,8 +559,7 @@ func walkFiles(done <-chan struct{}, root string) (<-chan string, <-chan error) 
 ```
 [`Смотри исходный код`](https://github.com/Konstantin8105/Go-pipelines/blob/master/pipelines/bounded.go)
 
-The middle stage starts a fixed number of `digester` goroutines that receive
-file names from `paths` and send `results` on channel `c`:
+The middle stage starts a fixed number of `digester` goroutines that receive file names from `paths` and send `results` on channel `c`:
 
 ```golang
 func digester(done <-chan struct{}, paths <-chan string, c chan<- result) {
@@ -620,9 +575,7 @@ func digester(done <-chan struct{}, paths <-chan string, c chan<- result) {
 ```
 [`Смотри исходный код`](https://github.com/Konstantin8105/Go-pipelines/blob/master/pipelines/bounded.go)
 
-Unlike our previous examples, `digester` does not close its output channel, as
-multiple goroutines are sending on a shared channel.  Instead, code in `MD5All`
-arranges for the channel to be closed when all the `digesters` are done:
+Unlike our previous examples, `digester` does not close its output channel, as multiple goroutines are sending on a shared channel.  Instead, code in `MD5All` arranges for the channel to be closed when all the `digesters` are done:
 
 ```golang
 c := make(chan result) // HLc
@@ -642,13 +595,9 @@ go func() {
 ```
 [`Смотри исходный код`](https://github.com/Konstantin8105/Go-pipelines/blob/master/pipelines/bounded.go)
 
-We could instead have each digester create and return its own output
-channel, but then we would need additional goroutines to fan-in the
-results.
+We could instead have each digester create and return its own output channel, but then we would need additional goroutines to fan-in the results.
 
-The final stage receives all the `results` from `c` then checks the
-error from `errc`.  This check cannot happen any earlier, since before
-this point, `walkFiles` may block sending values downstream:
+The final stage receives all the `results` from `c` then checks the error from `errc`.  This check cannot happen any earlier, since before this point, `walkFiles` may block sending values downstream:
 
 ```golang
 m := make(map[string][md5.Size]byte)
@@ -668,12 +617,7 @@ return m, nil
 
 ## Conclusion
 
-This article has presented techniques for constructing streaming data pipelines
-in Go.  Dealing with failures in such pipelines is tricky, since each stage in
-the pipeline may block attempting to send values downstream, and the downstream
-stages may no longer care about the incoming data.  We showed how closing a
-channel can broadcast a "done" signal to all the goroutines started by a
-pipeline and defined guidelines for constructing pipelines correctly.
+This article has presented techniques for constructing streaming data pipelines in Go.  Dealing with failures in such pipelines is tricky, since each stage in the pipeline may block attempting to send values downstream, and the downstream stages may no longer care about the incoming data.  We showed how closing a channel can broadcast a "done" signal to all the goroutines started by a pipeline and defined guidelines for constructing pipelines correctly.
 
 Further reading:
 
