@@ -531,9 +531,9 @@ func MD5All(root string) (map[string][md5.Size]byte, error) {
 
 Реализация `MD5All` в [parallel.go](https://github.com/Konstantin8105/Go-pipelines/blob/master/pipelines/parallel.go) запускает новую горутину для каждого файла. В каталоге со большими количеством файлами это может привести к выделению большого объема памяти, чем доступно на машине.
 
-We can limit these allocations by bounding the number of files read in parallel.  In [[pipelines/bounded.go][bounded.go]], we do this by creating a fixed number of goroutines for reading files.  Our pipeline now has three stages: walk the tree, read and digest the files, and collect the digests.
+Мы можем ограничить эти распределение, ограничивая количество файлов, прочитаемых параллельно. В [bounded.go](https://github.com/Konstantin8105/Go-pipelines/blob/master/pipelines/bounded.go) мы делаем это, создавая фиксированное количество горутин для чтения файлов. Наш конвеер теперь имеет три этапа: ходить по дереву, читать и просчитывать файлы, а также собирать окончательные значения.
 
-The first stage, `walkFiles`, emits the paths of regular files in the tree:
+Первый этап, `walkFiles`, результатом которого является пути файлов в дереве:
 
 ```golang
 func walkFiles(done <-chan struct{}, root string) (<-chan string, <-chan error) {
@@ -563,7 +563,7 @@ func walkFiles(done <-chan struct{}, root string) (<-chan string, <-chan error) 
 ```
 [`Смотри исходный код`](https://github.com/Konstantin8105/Go-pipelines/blob/master/pipelines/bounded.go)
 
-The middle stage starts a fixed number of `digester` goroutines that receive file names from `paths` and send `results` on channel `c`:
+Средний этап запускает фиксированное количество горутин(считоводов, `digester`), которые получают имена файлов из «путей» и отправляют «результаты» в канал `c`:
 
 ```golang
 func digester(done <-chan struct{}, paths <-chan string, c chan<- result) {
@@ -579,23 +579,23 @@ func digester(done <-chan struct{}, paths <-chan string, c chan<- result) {
 ```
 [`Смотри исходный код`](https://github.com/Konstantin8105/Go-pipelines/blob/master/pipelines/bounded.go)
 
-Unlike our previous examples, `digester` does not close its output channel, as multiple goroutines are sending on a shared channel.  Instead, code in `MD5All` arranges for the channel to be closed when all the `digesters` are done:
+В отличие от предыдущих примеров, `digester` не закрывает свой выходной канал, поскольку несколько горутин отправляют по общему каналу. Вместо этого код в `MD5All` упорядочивает канал, который будет закрыт, когда все `digesters` будут выполнены:
 
 ```golang
-c := make(chan result) // HLc
-var wg sync.WaitGroup
-const numDigesters = 20
-wg.Add(numDigesters)
-for i := 0; i < numDigesters; i++ {
-    go func() {
-        digester(done, paths, c) // HLc
-        wg.Done()
-    }()
-}
-go func() {
-    wg.Wait()
-    close(c) // HLc
-}()
+    c := make(chan result) // HLc
+    var wg sync.WaitGroup
+    const numDigesters = 20
+    wg.Add(numDigesters)
+    for i := 0; i < numDigesters; i++ {
+        go func() {
+            digester(done, paths, c) // HLc
+            wg.Done()
+            }()
+        }
+        go func() {
+            wg.Wait()
+            close(c) // HLc
+        }()
 ```
 [`Смотри исходный код`](https://github.com/Konstantin8105/Go-pipelines/blob/master/pipelines/bounded.go)
 
