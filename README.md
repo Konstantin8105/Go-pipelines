@@ -367,25 +367,29 @@ func sq(done <-chan struct{}, in <-chan int) <-chan int {
 
 Конвейеры разблокируют отправители либо путем обеспечения достаточного количества буфера для всех отправленных значений, либо путем явного оповещения отправителей, когда приемник может отказаться от канала.
 
-## Digesting a tree
+## Прохождение по дереву
 
-Let's consider a more realistic pipeline.
+Рассмотрим более реалистичный конвейер.
 
-MD5 is a message-digest algorithm that's useful as a file checksum.  The command line utility `md5sum` prints digest values for a list of files.
+MD5 - это алгоритм сокращения сообщений до короткого значения, который полезен в качестве контрольной суммы файла. Утилита командной строки `md5sum` печатает значения для списка файлов.
+
 ```
 	% md5sum *.go
 	d47c2bbc28298ca9befdfbc5d3aa4e65  bounded.go
 	ee869afd31f83cbb2d10ee81b2b831dc  parallel.go
 	b88175e65fdcbc01ac08aaf1fd9b5e96  serial.go
 ```
-Our example program is like `md5sum` but instead takes a single directory as an argument and prints the digest values for each regular file under that directory, sorted by path name.
+
+Наша программа для примера похожа на `md5sum`, но вместо этого принимает один каталог в качестве аргумента и печатает значения дайджеста для каждого файла в этом каталоге, отсортированного по имени пути.
+
 ```
 	% go run serial.go .
 	d47c2bbc28298ca9befdfbc5d3aa4e65  bounded.go
 	ee869afd31f83cbb2d10ee81b2b831dc  parallel.go
 	b88175e65fdcbc01ac08aaf1fd9b5e96  serial.go
 ```
-The main function of our program invokes a helper function `MD5All`, which returns a map from path name to digest value, then sorts and prints the results:
+
+Основная функция нашей программы вызывает вспомогательную функцию `MD5All`, которая возвращает карту из имени пути в значение, затем сортирует и печатает результаты:
 
 ```golang
 func main() {
@@ -408,7 +412,7 @@ func main() {
 ```
 [`Смотри исходный код`](https://github.com/Konstantin8105/Go-pipelines/blob/master/pipelines/serial.go)
 
-The `MD5All` function is the focus of our discussion.  In [[pipelines/serial.go][serial.go]], the implementation uses no concurrency and simply reads and sums each file as it walks the tree.
+Функция `MD5All` находится в центре нашего обсуждения. В реализации [serial.go](https://github.com/Konstantin8105/Go-pipelines/blob/master/pipelines/serial.go) не используется параллелизм и просто считывает и суммирует каждый файл при прохождении дерева.
 
 ```golang
 func MD5All(root string) (map[string][md5.Size]byte, error) {
@@ -435,9 +439,9 @@ func MD5All(root string) (map[string][md5.Size]byte, error) {
 ```
 [`Смотри исходный код`](https://github.com/Konstantin8105/Go-pipelines/blob/master/pipelines/serial.go)
 
-## Parallel digestion
+## Параллельная реализация
 
-In [[pipelines/parallel.go][parallel.go]], we split `MD5All` into a two-stage pipeline.  The first stage, `sumFiles`, walks the tree, digests each file in a new goroutine, and sends the results on a channel with value type `result`:
+В реализации [parallel.go](https://github.com/Konstantin8105/Go-pipelines/blob/master/pipelines/parallel.go), мы разделим `MD5All` на двухступенчатый конвейер. Первый этап, `sumFiles`, ходит по дереву, переваривает каждый файл в своей горутине и отправляет результаты по каналу со значением типа `result`:
 
 ```golang
 // A result is the product of reading and summing a file using MD5.
