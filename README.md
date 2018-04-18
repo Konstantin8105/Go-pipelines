@@ -301,8 +301,8 @@ func main() {
 ```
 [`Смотри исходный код`](https://github.com/Konstantin8105/Go-pipelines/blob/master/pipelines/sqdone3.go)
 
-Each of our pipeline stages is now free to return as soon as `done` is closed.
-The `output` routine in `merge` can return without draining its inbound channel, since it knows the upstream sender, `sq`, will stop attempting to send when `done` is closed.  `output` ensures `wg.Done` is called on all return paths via a `defer` statement:
+Каждый из наших этапов конвейера теперь может вернуться, как только `done` будет закрыт.
+Процедура `output` в `merge` может возвращаться без дренирования входящего канала, так как она знает, что отправитель вверх, `sq`, перестанет пытаться отправить, когда `done` будет закрыт. `output` гарантирует, что `wg.Done` вызывается для всех путей возврата через оператор `defer`:
 
 ```golang
 func merge(done <-chan struct{}, cs ...<-chan int) <-chan int {
@@ -340,7 +340,7 @@ func merge(done <-chan struct{}, cs ...<-chan int) <-chan int {
 ```
 [`Смотри исходный код`](https://github.com/Konstantin8105/Go-pipelines/blob/master/pipelines/sqdone3.go)
 
-Similarly, `sq` can return as soon as `done` is closed.  `sq` ensures its `out` channel is closed on all return paths via a `defer` statement:
+Аналогично, `sq` может вернуться, как только `done` будет закрыт. `sq` гарантирует, что канал `out` закрыт на всех обратных путях с помощью инструкции `defer`:
 
 ```golang
 func sq(done <-chan struct{}, in <-chan int) <-chan int {
@@ -360,12 +360,12 @@ func sq(done <-chan struct{}, in <-chan int) <-chan int {
 ```
 [`Смотри исходный код`](https://github.com/Konstantin8105/Go-pipelines/blob/master/pipelines/sqdone3.go)
 
-Here are the guidelines for pipeline construction:
+Вот рекомендации по разработке конвеера:
 
-- stages close their outbound channels when all the send operations are done.
-- stages keep receiving values from inbound channels until those channels are closed or the senders are unblocked.
+- этапы закрывают свои исходящие каналы, когда выполняются все операции отправки.
+- этапы продолжают получать значения от входящих каналов до тех пор, пока эти каналы не будут закрыты или отправители не будут разблокированы.
 
-Pipelines unblock senders either by ensuring there's enough buffer for all the values that are sent or by explicitly signalling senders when the receiver may abandon the channel.
+Конвейеры разблокируют отправители либо путем обеспечения достаточного количества буфера для всех отправленных значений, либо путем явного оповещения отправителей, когда приемник может отказаться от канала.
 
 ## Digesting a tree
 
