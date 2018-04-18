@@ -29,7 +29,7 @@ function.  In each stage, the goroutines
 Мы начнем с простого примера конвейера, чтобы объяснить идеи и методы.
 Позже мы представим более реалистичный пример.
 
-## Squaring numbers
+## Возведение чисел в степень
 
 Consider a pipeline with three stages.
 
