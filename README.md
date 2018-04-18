@@ -453,7 +453,7 @@ type result struct {
 ```
 [`Смотри исходный код`](https://github.com/Konstantin8105/Go-pipelines/blob/master/pipelines/parallel.go)
 
-`sumFiles` returns two channels: one for the `results` and another for the error returned by `filepath.Walk`.  The walk function starts a new goroutine to process each regular file, then checks `done`.  If `done` is closed, the walk stops immediately:
+`sumFiles` возвращает два канала: один для `результатов` и другой для ошибки, возвращаемой `filepath.Walk`. Функция `walk` запускает новую горутину для обработки каждого файла, а затем проверяет `done`. Если `done` будет закрыто, проход по файлам немедленно прекратится:
 
 ```golang
 func sumFiles(done <-chan struct{}, root string) (<-chan result, <-chan error) {
