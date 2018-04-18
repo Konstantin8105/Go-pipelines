@@ -31,12 +31,9 @@ function.  In each stage, the goroutines
 
 ## Возведение чисел в степень
 
-Consider a pipeline with three stages.
+Рассмотрим конвеер с тремя этапами.
 
-The first stage, `gen`, is a function that converts a list of integers to a
-channel that emits the integers in the list.  The `gen` function starts a
-goroutine that sends the integers on the channel and closes the channel when all
-the values have been sent:
+Первый этап, `gen`, является функцией, которая преобразует список целых чисел в канал. Функция `gen` запускает горутину, которая отправляет целые числа в канал и закрывает канал, когда все значения были отправлены:
 
 ```golang
 func gen(nums ...int) <-chan int {
@@ -52,10 +49,7 @@ func gen(nums ...int) <-chan int {
 ```
 [`Смотри исходный код`](https://github.com/Konstantin8105/Go-pipelines/blob/master/pipelines/square.go)
 
-The second stage, `sq`, receives integers from a channel and returns a
-channel that emits the square of each received integer.  After the
-inbound channel is closed and this stage has sent all the values
-downstream, it closes the outbound channel:
+Второй этап, `sq`, получает целые числа из канала и возвращает канал, который испускает квадрат каждого принятого целого. После того, как входящий канал закрыт, и этот этап отправил все значения ниже по течению, он закрывает исходящий канал:
 
 ```golang
 func sq(in <-chan int) <-chan int {
@@ -71,8 +65,7 @@ func sq(in <-chan int) <-chan int {
 ```
 [`Смотри исходный код`](https://github.com/Konstantin8105/Go-pipelines/blob/master/pipelines/square.go)
 
-The `main` function sets up the pipeline and runs the final stage: it receives
-values from the second stage and prints each one, until the channel is closed:
+Функция `main` создает конвейер и запускает заключительный этап: он получает значения со второго этапа и печатает их, пока канал не будет закрыт:
 
 ```golang
 func main() {
@@ -87,9 +80,7 @@ func main() {
 ```
 [`Смотри исходный код`](https://github.com/Konstantin8105/Go-pipelines/blob/master/pipelines/square.go)
 
-Since `sq` has the same type for its inbound and outbound channels, we
-can compose it any number of times.  We can also rewrite `main` as a
-range loop, like the other stages:
+Поскольку `sq` имеет один и тот же тип для входящих и исходящих каналов, мы можем создавать его сколько угодно раз. Мы также можем переписать `main` как цикл диапазона, как и другие этапы:
 
 ```golang
 func main() {
