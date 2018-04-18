@@ -18,17 +18,16 @@ concurrent programs.  Informally, a pipeline is a series of _stages_ connected
 by channels, where each stage is a group of goroutines running the same
 function.  In each stage, the goroutines
 
-- receive values from _upstream_ via _inbound_ channels
-- perform some function on that data, usually producing new values
-- send values _downstream_ via _outbound_ channels
+В Go нет формального определения конвейера; это всего лишь один из многих видов параллельных программ. Неформально конвейер представляет собой серию `этапов`(*stages*), связанных каналами, где каждый этап представляет собой группу горутин, выполняющих ту же функцию. На каждом этапе горутины:
 
-Each stage has any number of inbound and outbound channels, except the
-first and last stages, which have only outbound or inbound channels,
-respectively.  The first stage is sometimes called the _source_ or
-_producer_; the last stage, the _sink_ or _consumer_.
+- получать значения от *upstream* через *inbound* каналы
+- выполняют некоторые функции по этим данным, обычно производя новые значения
+- отправляют значения *downstream* через *outbound* каналы
 
-We'll begin with a simple example pipeline to explain the ideas and techniques.
-Later, we'll present a more realistic example.
+Каждый этап имеет любое количество входящих и исходящих каналов, за исключением первого и последнего этапов, которые имеют только исходящие или входящие каналы соответственно. Первый этап иногда называют *source*(*источник*) или *producer*; последний этап, *sink* или *consumer*(*потребитель*).
+
+Мы начнем с простого примера конвейера, чтобы объяснить идеи и методы.
+Позже мы представим более реалистичный пример.
 
 ## Squaring numbers
 
