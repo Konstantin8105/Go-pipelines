@@ -501,7 +501,7 @@ func sumFiles(done <-chan struct{}, root string) (<-chan result, <-chan error) {
 ```
 [`Смотри исходный код`](https://github.com/Konstantin8105/Go-pipelines/blob/master/pipelines/parallel.go)
 
-`MD5All` receives the digest values from `c`.  `MD5All` returns early on error, closing `done` via a `defer`:
+`MD5All` получает значение из `c`. `MD5All` при ошибки, закрывая `done` через `defer`:
 
 ```golang
 func MD5All(root string) (map[string][md5.Size]byte, error) {
