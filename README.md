@@ -599,9 +599,9 @@ func digester(done <-chan struct{}, paths <-chan string, c chan<- result) {
 ```
 [`Смотри исходный код`](https://github.com/Konstantin8105/Go-pipelines/blob/master/pipelines/bounded.go)
 
-We could instead have each digester create and return its own output channel, but then we would need additional goroutines to fan-in the results.
+Вместо этого мы могли бы создать каждый дайджест и вернуть его собственный канал вывода, но тогда нам понадобятся дополнительные горутины для слияния результатов.
 
-The final stage receives all the `results` from `c` then checks the error from `errc`.  This check cannot happen any earlier, since before this point, `walkFiles` may block sending values downstream:
+Заключительный этап получает все `results` от `c`, затем проверяет ошибку из `errc`. Эта проверка не может произойти раньше, так как до этого момента `walkFiles` может блокировать отправку значений вниз по течению:
 
 ```golang
 m := make(map[string][md5.Size]byte)
@@ -619,11 +619,11 @@ return m, nil
 ```
 [`Смотри исходный код`](https://github.com/Konstantin8105/Go-pipelines/blob/master/pipelines/bounded.go)
 
-## Conclusion
+## Вывод
 
-This article has presented techniques for constructing streaming data pipelines in Go.  Dealing with failures in such pipelines is tricky, since each stage in the pipeline may block attempting to send values downstream, and the downstream stages may no longer care about the incoming data.  We showed how closing a channel can broadcast a "done" signal to all the goroutines started by a pipeline and defined guidelines for constructing pipelines correctly.
+В этой статье представлены методы построения потоковых конвейеров данных в Go. Работа с ошибками в таких конвейерах является сложной задачей, поскольку каждый этап в конвейере может блокировать попытку отправки значений вниз по течению, а нисходящие этапы могут больше не заботиться о входящих данных. Мы показали, как закрытие канала может транслировать «готовый» сигнал всем гортанам, запущенным конвейером, и определенным правилам для правильного построения конвеера.
 
-Further reading:
+Дальнейшее чтение:
 
 - [Go Concurrency Patterns](http://talks.golang.org/2012/concurrency.slide#1) ([video](https://www.youtube.com/watch?v=f6kdp27TYZs)) presents the basics of Go's concurrency primitives and several ways to apply them.
 - [Advanced Go Concurrency Patterns](http://blog.golang.org/advanced-go-concurrency-patterns) ([video](http://www.youtube.com/watch?v=QDDwwePbDtw)) covers more complex uses of Go's primitives, especially `select`.
