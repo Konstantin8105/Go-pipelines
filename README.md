@@ -79,13 +79,32 @@ func sq(in <-chan int) <-chan int {
 The `main` function sets up the pipeline and runs the final stage: it receives
 values from the second stage and prints each one, until the channel is closed:
 
-.code pipelines/square.go /func main/,/^}/
+```golang
+func main() {
+	// Set up the pipeline.
+	c := gen(2, 3)
+	out := sq(c)
+
+	// Consume the output.
+	fmt.Println(<-out) // 4
+	fmt.Println(<-out) // 9
+}
+```
+[`Смотри исходный код`](https://github.com/Konstantin8105/Go-pipelines/blob/master/pipelines/square.go)
 
 Since `sq` has the same type for its inbound and outbound channels, we
 can compose it any number of times.  We can also rewrite `main` as a
 range loop, like the other stages:
 
-.code pipelines/square2.go /func main/,/^}/
+```golang
+func main() {
+	// Set up the pipeline and consume the output.
+	for n := range sq(sq(gen(2, 3))) {
+		fmt.Println(n) // 16 then 81
+	}
+}
+```
+[`Смотри исходный код`](https://github.com/Konstantin8105/Go-pipelines/blob/master/pipelines/square2.go)
 
 ## Fan-out, fan-in
 
@@ -101,7 +120,21 @@ We can change our pipeline to run two instances of `sq`, each reading from the
 same input channel.  We introduce a new function, _merge_, to fan in the
 results:
 
-.code pipelines/sqfan.go /func main/,/^}/
+```golang
+func main() {
+	in := gen(2, 3)
+
+	// Distribute the sq work across two goroutines that both read from in.
+	c1 := sq(in)
+	c2 := sq(in)
+
+	// Consume the merged output from c1 and c2.
+	for n := range merge(c1, c2) {
+		fmt.Println(n) // 4 then 9, or 9 then 4
+	}
+}
+```
+[`Смотри исходный код`](https://github.com/Konstantin8105/Go-pipelines/blob/master/pipelines/sqfan.go)
 
 The `merge` function converts a list of channels to a single channel by starting
 a goroutine for each inbound channel that copies the values to the sole outbound
@@ -111,10 +144,40 @@ done.
 
 Sends on a closed channel panic, so it's important to ensure all sends
 are done before calling close.  The
-[[http://golang.org/pkg/sync/#WaitGroup][`sync.WaitGroup`]] type
+[`sync.WaitGroup`](http://golang.org/pkg/sync/#WaitGroup) type
 provides a simple way to arrange this synchronization:
 
-.code pipelines/sqfan.go /func merge/,/^}/
+```golang
+// merge receives values from each input channel and sends them on the returned
+// channel.  merge closes the returned channel after all the input values have
+// been sent.
+func merge(cs ...<-chan int) <-chan int {
+	var wg sync.WaitGroup // HL
+	out := make(chan int)
+
+	// Start an output goroutine for each input channel in cs.  output
+	// copies values from c to out until c is closed, then calls wg.Done.
+	output := func(c <-chan int) {
+		for n := range c {
+			out <- n
+		}
+		wg.Done() // HL
+	}
+	wg.Add(len(cs)) // HL
+	for _, c := range cs {
+		go output(c)
+	}
+
+	// Start a goroutine to close out once all the output goroutines are
+	// done.  This must start after the wg.Add call.
+	go func() {
+		wg.Wait() // HL
+		close(out)
+	}()
+	return out
+}
+```
+[`Смотри исходный код`](https://github.com/Konstantin8105/Go-pipelines/blob/master/pipelines/sqfan.go)
 
 ## Stopping short
 
