@@ -265,7 +265,7 @@ early return.  Keeping track of these counts is tedious and error-prone.
 We need a way to tell an unknown and unbounded number of goroutines to
 stop sending their values downstream.  In Go, we can do this by
 closing a channel, because
-[[http://golang.org/ref/spec#Receive_operator][a receive operation on a closed channel can always proceed immediately, yielding the element type's zero value.]]
+[a receive operation on a closed channel can always proceed immediately, yielding the element type's zero value.](http://golang.org/ref/spec#Receive_operator)
 
 This means that `main` can unblock all the senders simply by closing
 the `done` channel.  This close is effectively a broadcast signal to
@@ -398,6 +398,6 @@ pipeline and defined guidelines for constructing pipelines correctly.
 
 Further reading:
 
-- [[http://talks.golang.org/2012/concurrency.slide#1][Go Concurrency Patterns]] ([[https://www.youtube.com/watch?v=f6kdp27TYZs][video]]) presents the basics of Go's concurrency primitives and several ways to apply them.
-- [[http://blog.golang.org/advanced-go-concurrency-patterns][Advanced Go Concurrency Patterns]] ([[http://www.youtube.com/watch?v=QDDwwePbDtw][video]]) covers more complex uses of Go's primitives, especially `select`.
-- Douglas McIlroy's paper [[http://swtch.com/~rsc/thread/squint.pdf][Squinting at Power Series]] shows how Go-like concurrency provides elegant support for complex calculations.
+- [Go Concurrency Patterns](http://talks.golang.org/2012/concurrency.slide#1) ([video](https://www.youtube.com/watch?v=f6kdp27TYZs)) presents the basics of Go's concurrency primitives and several ways to apply them.
+- [Advanced Go Concurrency Patterns](http://blog.golang.org/advanced-go-concurrency-patterns) ([video](http://www.youtube.com/watch?v=QDDwwePbDtw)) covers more complex uses of Go's primitives, especially `select`.
+- Douglas McIlroy's paper [Squinting at Power Series](http://swtch.com/~rsc/thread/squint.pdf) shows how Go-like concurrency provides elegant support for complex calculations.
