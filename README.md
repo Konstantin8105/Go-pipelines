@@ -272,11 +272,11 @@ func merge(done <-chan struct{}, cs ...<-chan int) <-chan int {
 ```
 [`Смотри исходный код`](https://github.com/Konstantin8105/Go-pipelines/blob/master/pipelines/sqdone1.go)
 
-This approach has a problem: _each_ downstream receiver needs to know the number of potentially blocked upstream senders and arrange to signal those senders on early return.  Keeping track of these counts is tedious and error-prone.
+Этот подход имеет проблему: *каждый* нисходящий приемник должен знать количество потенциально заблокированных отправителей восходящего потока и организовать сигнализацию этих отправителей при раннем возврате. Отслеживание этих показателей является утомительным и подвержен ошибкам.
 
-We need a way to tell an unknown and unbounded number of goroutines to stop sending their values downstream.  In Go, we can do this by closing a channel, because [a receive operation on a closed channel can always proceed immediately, yielding the element type's zero value.](http://golang.org/ref/spec#Receive_operator)
+Нам нужен способ сообщить неизвестному и неограниченному количеству горутин прекратить отправку своих значений вниз по течению. В Go мы можем сделать это, закрыв канал, потому что [операция приема на закрытом канале всегда может действовать немедленно, что дает нулевое значение типа элемента.](http://golang.org/ref/spec#Receive_operator)
 
-This means that `main` can unblock all the senders simply by closing the `done` channel.  This close is effectively a broadcast signal to the senders.  We extend _each_ of our pipeline functions to accept `done` as a parameter and arrange for the close to happen via a `defer` statement, so that all return paths from `main` will signal the pipeline stages to exit.
+Это означает, что `main` может разблокировать всех отправителей, просто закрыв канал `done`. Это близко к  широковещательным сигналом отправителям. Мы расширяем *каждого* наших функций конвейера, чтобы принять `done` в качестве параметра и организовать близость с помощью инструкции `defer`, так что все пути возврата от `main` будут сигнализировать о завершении этапа конвейера
 
 ```golang
 func main() {
