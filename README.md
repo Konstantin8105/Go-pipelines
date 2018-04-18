@@ -527,9 +527,9 @@ func MD5All(root string) (map[string][md5.Size]byte, error) {
 ```
 [`Смотри исходный код`](https://github.com/Konstantin8105/Go-pipelines/blob/master/pipelines/parallel.go)
 
-## Bounded parallelism
+## Ограниченный параллелизм
 
-The `MD5All` implementation in [[pipelines/parallel.go][parallel.go]] starts a new goroutine for each file. In a directory with many large files, this may allocate more memory than is available on the machine.
+Реализация `MD5All` в [parallel.go](https://github.com/Konstantin8105/Go-pipelines/blob/master/pipelines/parallel.go) запускает новую горутину для каждого файла. В каталоге со большими количеством файлами это может привести к выделению большого объема памяти, чем доступно на машине.
 
 We can limit these allocations by bounding the number of files read in parallel.  In [[pipelines/bounded.go][bounded.go]], we do this by creating a fixed number of goroutines for reading files.  Our pipeline now has three stages: walk the tree, read and digest the files, and collect the digests.
 
