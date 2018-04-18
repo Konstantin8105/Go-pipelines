@@ -213,7 +213,7 @@ func merge(cs ...<-chan int) <-chan int {
 
 ## Явная отмена
 
-When `main` decides to exit without receiving all the values from `out`, it must tell the goroutines in the upstream stages to abandon the values they're trying it send.  It does so by sending values on a channel called `done`.  It sends two values since there are potentially two blocked senders:
+Когда `main` решает выйти без получения всех значений из` out`, он должен сообщить горутинам на этапах выше по течению отказаться от значений, которые они пытаются отправить. Он делает это, отправляя значения в канал, называемый `done`. Он отправляет два значения, поскольку есть потенциально два заблокированных отправителя:
 
 ```golang
 func main() {
@@ -235,7 +235,7 @@ func main() {
 ```
 [`Смотри исходный код`](https://github.com/Konstantin8105/Go-pipelines/blob/master/pipelines/sqdone1.go)
 
-The sending goroutines replace their send operation with a `select` statement that proceeds either when the send on `out` happens or when they receive a value from `done`.  The value type of `done` is the empty struct because the value doesn't matter: it is the receive event that indicates the send on `out` should be abandoned.  The `output` goroutines continue looping on their inbound channel, `c`, so the upstream stages are not blocked. (We'll discuss in a moment how to allow this loop to return early.)
+Отправляющие горутины заменяют свою операцию отправки оператором `select`, который выполняется либо при отправке на` out`, либо при получении значения из `done`. Тип значения `done` - это пустая структура, потому что значение не имеет значения: это событие получения, указывающее на отправку на `out`, должно быть отменено. Горутины `output` продолжают цикл на своем входящем канале `c`, поэтому этапы восходящего потока не блокируются. (Мы обсудим в какой-то момент, как разрешить этот цикл вернуться раньше.)
 
 ```golang
 func merge(done <-chan struct{}, cs ...<-chan int) <-chan int {
