@@ -187,7 +187,11 @@ that later stages don't need.
 In our example pipeline, if a stage fails to consume all the inbound values, the
 goroutines attempting to send those values will block indefinitely:
 
-.code pipelines/sqleak.go /first value/,/^}/
+```golang
+// Consume the first value from output.
+out := merge(c1, c2)
+```
+[`Смотри исходный код`](https://github.com/Konstantin8105/Go-pipelines/blob/master/pipelines/sqleak.go)
 
 This is a resource leak: goroutines consume memory and runtime resources, and
 heap references in goroutine stacks keep data from being garbage collected.
@@ -208,12 +212,28 @@ When the number of values to be sent is known at channel creation time, a buffer
 can simplify the code.  For example, we can rewrite `gen` to copy the list of
 integers into a buffered channel and avoid creating a new goroutine:
 
-.code pipelines/sqbuffer.go /func gen/,/^}/
+```golang
+func gen(nums ...int) <-chan int {
+	out := make(chan int, len(nums))
+	for _, n := range nums {
+		out <- n
+	}
+	close(out)
+	return out
+}
+```
+[`Смотри исходный код`](https://github.com/Konstantin8105/Go-pipelines/blob/master/pipelines/sqbuffer.go)
 
 Returning to the blocked goroutines in our pipeline, we might consider adding a
 buffer to the outbound channel returned by `merge`:
 
-.code pipelines/sqbuffer.go /func merge/,/unchanged/
+```golang
+func merge(cs ...<-chan int) <-chan int {
+	var wg sync.WaitGroup
+	out := make(chan int, 1) // enough space for the unread inputs
+	// ... the rest is unchanged ...
+```
+[`Смотри исходный код`](https://github.com/Konstantin8105/Go-pipelines/blob/master/pipelines/sqbuffer.go)
 
 While this fixes the blocked goroutine in this program, this is bad code.  The
 choice of buffer size of 1 here depends on knowing the number of values `merge`
