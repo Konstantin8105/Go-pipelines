@@ -87,19 +87,13 @@ func main() {
 ```
 [`Смотри исходный код`](https://github.com/Konstantin8105/Go-pipelines/blob/master/pipelines/square2.go)
 
-## Fan-out, fan-in
+## Расщепление (fan-out), слияние (fan-in) каналов
 
-Multiple functions can read from the same channel until that channel is closed;
-this is called _fan-out_. This provides a way to distribute work amongst a group
-of workers to parallelize CPU use and I/O.
+Несколько функций могут считывать значения с одного канала до тех пор, пока этот канал не будет закрыт; это называется *расщепление*(*fan-out*). Это дает возможность распределить работу среди группы горутин для параллелизации использования ЦП и операций ввода-вывода.
 
-A function can read from multiple inputs and proceed until all are closed by
-multiplexing the input channels onto a single channel that's closed when all the
-inputs are closed.  This is called _fan-in_.
+Функция может считываться с нескольких входов и действовать до тех пор, пока все не будут закрыты путем мультиплексирования входных каналов на один канал, который закрыт, когда все входы будут закрыты. Это называется *слияние*(*fan-in*) каналов.
 
-We can change our pipeline to run two instances of `sq`, each reading from the
-same input channel.  We introduce a new function, _merge_, to fan in the
-results:
+Мы можем изменить наш конвейер для запуска двух экземпляров `sq`, каждый из которых считывается из одного входного канала. Введем новую функцию, `merge`, чтобы включить в результаты:
 
 ```golang
 func main() {
