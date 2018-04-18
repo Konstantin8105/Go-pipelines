@@ -13,11 +13,6 @@ Sameer Ajmani
 
 ## Что такое конвейер(pipeline)?
 
-There's no formal definition of a pipeline in Go; it's just one of many kinds of
-concurrent programs.  Informally, a pipeline is a series of _stages_ connected
-by channels, where each stage is a group of goroutines running the same
-function.  In each stage, the goroutines
-
 В Go нет формального определения конвейера; это всего лишь один из многих видов параллельных программ. Неформально конвейер представляет собой серию `этапов`(*stages*), связанных каналами, где каждый этап представляет собой группу горутин, выполняющих ту же функцию. На каждом этапе горутины:
 
 - получать значения от *upstream* через *inbound* каналы
@@ -188,8 +183,13 @@ In our example pipeline, if a stage fails to consume all the inbound values, the
 goroutines attempting to send those values will block indefinitely:
 
 ```golang
-// Consume the first value from output.
-out := merge(c1, c2)
+    // Consume the first value from output.
+    out := merge(c1, c2)
+    fmt.Println(<-out) // 4 or 9
+    return
+    // Since we didn't receive the second value from out,
+    // one of the output goroutines is hung attempting to send it.
+}
 ```
 [`Смотри исходный код`](https://github.com/Konstantin8105/Go-pipelines/blob/master/pipelines/sqleak.go)
 
