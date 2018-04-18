@@ -89,11 +89,11 @@ func main() {
 
 ## Расщепление (fan-out), слияние (fan-in) каналов
 
-Несколько функций могут считывать значения с одного канала до тех пор, пока этот канал не будет закрыт; это называется *расщепление*(*fan-out*). Это дает возможность распределить работу среди группы горутин для параллелизации использования ЦП и операций ввода-вывода.
+Несколько функций могут считывать значения с одного канала до тех пор, пока этот канал не будет закрыт; это называется *расщепление*(*fan-out*) канала. Это дает возможность распределить работу среди группы горутин для параллелизации использования ЦП и операций ввода-вывода.
 
 Функция может считываться с нескольких входов и действовать до тех пор, пока все не будут закрыты путем мультиплексирования входных каналов на один канал, который закрыт, когда все входы будут закрыты. Это называется *слияние*(*fan-in*) каналов.
 
-Мы можем изменить наш конвейер для запуска двух экземпляров `sq`, каждый из которых считывается из одного входного канала. Введем новую функцию, `merge`, чтобы включить в результаты:
+Мы можем изменить наш конвейер для запуска двух экземпляров `sq`, каждый из которых считывается из одного входного канала. Введем новую функцию, `merge`, чтобы объеденить результаты:
 
 ```golang
 func main() {
@@ -111,16 +111,9 @@ func main() {
 ```
 [`Смотри исходный код`](https://github.com/Konstantin8105/Go-pipelines/blob/master/pipelines/sqfan.go)
 
-The `merge` function converts a list of channels to a single channel by starting
-a goroutine for each inbound channel that copies the values to the sole outbound
-channel.  Once all the `output` goroutines have been started, `merge` starts one
-more goroutine to close the outbound channel after all sends on that channel are
-done.
+The `merge` function converts a list of channels to a single channel by starting a goroutine for each inbound channel that copies the values to the sole outbound channel.  Once all the `output` goroutines have been started, `merge` starts one more goroutine to close the outbound channel after all sends on that channel are done.
 
-Sends on a closed channel panic, so it's important to ensure all sends
-are done before calling close.  The
-[`sync.WaitGroup`](http://golang.org/pkg/sync/#WaitGroup) type
-provides a simple way to arrange this synchronization:
+Sends on a closed channel panic, so it's important to ensure all sends are done before calling close.  The [`sync.WaitGroup`](http://golang.org/pkg/sync/#WaitGroup) type provides a simple way to arrange this synchronization:
 
 ```golang
 // merge receives values from each input channel and sends them on the returned
@@ -161,20 +154,11 @@ There is a pattern to our pipeline functions:
 - stages close their outbound channels when all the send operations are done.
 - stages keep receiving values from inbound channels until those channels are closed.
 
-This pattern allows each receiving stage to be written as a `range` loop and
-ensures that all goroutines exit once all values have been successfully sent
-downstream.
+This pattern allows each receiving stage to be written as a `range` loop and ensures that all goroutines exit once all values have been successfully sent downstream.
 
-But in real pipelines, stages don't always receive all the inbound
-values.  Sometimes this is by design: the receiver may only need a
-subset of values to make progress.  More often, a stage exits early
-because an inbound value represents an error in an earlier stage. In
-either case the receiver should not have to wait for the remaining
-values to arrive, and we want earlier stages to stop producing values
-that later stages don't need.
+But in real pipelines, stages don't always receive all the inbound values.  Sometimes this is by design: the receiver may only need a subset of values to make progress.  More often, a stage exits early because an inbound value represents an error in an earlier stage. In either case the receiver should not have to wait for the remaining values to arrive, and we want earlier stages to stop producing values that later stages don't need.
 
-In our example pipeline, if a stage fails to consume all the inbound values, the
-goroutines attempting to send those values will block indefinitely:
+In our example pipeline, if a stage fails to consume all the inbound values, the goroutines attempting to send those values will block indefinitely:
 
 ```golang
     // Consume the first value from output.
@@ -187,15 +171,10 @@ goroutines attempting to send those values will block indefinitely:
 ```
 [`Смотри исходный код`](https://github.com/Konstantin8105/Go-pipelines/blob/master/pipelines/sqleak.go)
 
-This is a resource leak: goroutines consume memory and runtime resources, and
-heap references in goroutine stacks keep data from being garbage collected.
+This is a resource leak: goroutines consume memory and runtime resources, and heap references in goroutine stacks keep data from being garbage collected.
 Goroutines are not garbage collected; they must exit on their own.
 
-We need to arrange for the upstream stages of our pipeline to exit even when the
-downstream stages fail to receive all the inbound values.  One way to do this is
-to change the outbound channels to have a buffer.  A buffer can hold a fixed
-number of values; send operations complete immediately if there's room in the
-buffer:
+We need to arrange for the upstream stages of our pipeline to exit even when the downstream stages fail to receive all the inbound values.  One way to do this is to change the outbound channels to have a buffer.  A buffer can hold a fixed number of values; send operations complete immediately if there's room in the buffer:
 ```
         c := make(chan int, 2) // buffer size 2
         c <- 1  // succeeds immediately
