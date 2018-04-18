@@ -113,7 +113,7 @@ func main() {
 
 Функция `merge` преобразует список каналов в один канал, запустив горутину для каждого входящего канала, который копирует значения в единственный исходящий канал. Как только все «выходные» горутины были запущены, `merge` запускает еще одну горутину, чтобы закрыть исходящий канал после того, как все отправленные на этом канале будут выполнены.
 
-Отправка в закрытый канал приводит к панике, поэтому важно обеспечить, чтобы все посылки были выполнены до вызова. Тип [`sync.WaitGroup`] (http://golang.org/pkg/sync/#WaitGroup) обеспечивает простой способ организовать эту синхронизацию:
+Отправка в закрытый канал приводит к панике, поэтому важно обеспечить, чтобы все посылки были выполнены до вызова. Тип [`sync.WaitGroup`](http://golang.org/pkg/sync/#WaitGroup) обеспечивает простой способ организовать эту синхронизацию:
 
 ```golang
 // merge receives values from each input channel and sends them on the returned
@@ -149,16 +149,16 @@ func merge(cs ...<-chan int) <-chan int {
 
 ## Внезапная остановка
 
-There is a pattern to our pipeline functions:
+Для наших функций конвеера существует следующий паттерн:
 
-- stages close their outbound channels when all the send operations are done.
-- stages keep receiving values from inbound channels until those channels are closed.
+- этапы закрытия исходящих каналов, когда выполняются все операции отправки.
+- этапы продолжают получать значения от входящих каналов до тех пор, пока эти каналы не будут закрыты.
 
-This pattern allows each receiving stage to be written as a `range` loop and ensures that all goroutines exit once all values have been successfully sent downstream.
+Этот шаблон позволяет каждому участку приема записываться как цикл «range» и гарантирует, что все горутины будут завершены после того, как все значения будут успешно отправлены вниз по течению.
 
-But in real pipelines, stages don't always receive all the inbound values.  Sometimes this is by design: the receiver may only need a subset of values to make progress.  More often, a stage exits early because an inbound value represents an error in an earlier stage. In either case the receiver should not have to wait for the remaining values to arrive, and we want earlier stages to stop producing values that later stages don't need.
+Но в реальных конвеерах этапы не всегда получают все входящие значения. Иногда получателю может понадобиться только подмножество значений для достижения прогресса. Чаще всего этап выходит раньше, потому что входящее значение представляет ошибку на ранней стадии. В любом случае получателю не нужно ждать появления остальных значений, и мы хотим, чтобы более ранние этапы перестали выдавать значения, которые более поздние этапы не нужны.
 
-In our example pipeline, if a stage fails to consume all the inbound values, the goroutines attempting to send those values will block indefinitely:
+В нашем примере конвейера, если на этапе не хватает входящих значений, горутины, пытающиеся отправить эти значения, будут бесконечно блокироваться:
 
 ```golang
     // Consume the first value from output.
@@ -171,19 +171,19 @@ In our example pipeline, if a stage fails to consume all the inbound values, the
 ```
 [`Смотри исходный код`](https://github.com/Konstantin8105/Go-pipelines/blob/master/pipelines/sqleak.go)
 
-This is a resource leak: goroutines consume memory and runtime resources, and heap references in goroutine stacks keep data from being garbage collected.
-Goroutines are not garbage collected; they must exit on their own.
+Это утечка ресурсов: горутины потребляют память и ресурсы времени выполнения, а кучи ссылок в стэке горутины не позволяют собирать мусор.
+Горутины не собираются сборщиком мусора; они должны выйти сами по себе.
 
-We need to arrange for the upstream stages of our pipeline to exit even when the downstream stages fail to receive all the inbound values.  One way to do this is to change the outbound channels to have a buffer.  A buffer can hold a fixed number of values; send operations complete immediately if there's room in the buffer:
-```
+Нам нужно организовать выходные этапы нашего конвейера, чтобы выйти, даже если нисходящие этапы не смогут получить все входящие значения. Один из способов сделать это - изменить исходящие каналы на наличие буфера. Буфер может содержать фиксированное количество значений; операции отправки выполняются немедленно, если в буфере есть место
+
+```golang
         c := make(chan int, 2) // buffer size 2
         c <- 1  // succeeds immediately
         c <- 2  // succeeds immediately
         c <- 3  // blocks until another goroutine does <-c and receives 1
 ```
-When the number of values to be sent is known at channel creation time, a buffer
-can simplify the code.  For example, we can rewrite `gen` to copy the list of
-integers into a buffered channel and avoid creating a new goroutine:
+
+Когда количество отправляемых значений известно во время создания канала, буфер может упростить код. Например, мы можем переписать `gen`, чтобы скопировать список целых чисел в буферный канал и избежать создания новой горутины:
 
 ```golang
 func gen(nums ...int) <-chan int {
@@ -197,8 +197,7 @@ func gen(nums ...int) <-chan int {
 ```
 [`Смотри исходный код`](https://github.com/Konstantin8105/Go-pipelines/blob/master/pipelines/sqbuffer.go)
 
-Returning to the blocked goroutines in our pipeline, we might consider adding a
-buffer to the outbound channel returned by `merge`:
+Возвращаясь к заблокированным горутинам в нашем конвейере, мы можем рассмотреть возможность добавления буфера в исходящий канал, возвращаемый `merge`:
 
 ```golang
 func merge(cs ...<-chan int) <-chan int {
@@ -208,14 +207,9 @@ func merge(cs ...<-chan int) <-chan int {
 ```
 [`Смотри исходный код`](https://github.com/Konstantin8105/Go-pipelines/blob/master/pipelines/sqbuffer.go)
 
-While this fixes the blocked goroutine in this program, this is bad code.  The
-choice of buffer size of 1 here depends on knowing the number of values `merge`
-will receive and the number of values downstream stages will consume.  This is
-fragile: if we pass an additional value to `gen`, or if the downstream stage
-reads any fewer values, we will again have blocked goroutines.
+Хотя это исправляет заблокированный горутины в этой программе, это плохой код. Выбор размера буфера 1 здесь зависит от того, будет ли полученное количество значений `merge` будет получено, и количество уровней, которые будут использоваться ниже по течению. Это хрупко: если мы передаем дополнительное значение в `gen`, или если нижестоящий этап считывает меньшее количество значений, мы снова заблокируем горутину.
 
-Instead, we need to provide a way for downstream stages to indicate to the
-senders that they will stop accepting input.
+Вместо этого нам необходимо предоставить путь для последующих этапов, чтобы указать отправителям, что они перестанут принимать входные данные.
 
 ## Explicit cancellation
 
