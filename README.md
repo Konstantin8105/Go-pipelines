@@ -43,14 +43,38 @@ channel that emits the integers in the list.  The `gen` function starts a
 goroutine that sends the integers on the channel and closes the channel when all
 the values have been sent:
 
-.code pipelines/square.go /func gen/,/^}/
+```golang
+func gen(nums ...int) <-chan int {
+	out := make(chan int)
+	go func() {
+		for _, n := range nums {
+			out <- n
+		}
+		close(out)
+	}()
+	return out
+}
+```
+*[Смотри исходный код](https://github.com/Konstantin8105/Go-pipelines/blob/master/pipelines/square.go)*
 
 The second stage, `sq`, receives integers from a channel and returns a
 channel that emits the square of each received integer.  After the
 inbound channel is closed and this stage has sent all the values
 downstream, it closes the outbound channel:
 
-.code pipelines/square.go /func sq/,/^}/
+```golang
+func sq(in <-chan int) <-chan int {
+	out := make(chan int)
+	go func() {
+		for n := range in {
+			out <- n * n
+		}
+		close(out)
+	}()
+	return out
+}
+```
+*[Смотри исходный код](https://github.com/Konstantin8105/Go-pipelines/blob/master/pipelines/square.go)*
 
 The `main` function sets up the pipeline and runs the final stage: it receives
 values from the second stage and prints each one, until the channel is closed:
