@@ -212,12 +212,12 @@ downstream stages fail to receive all the inbound values.  One way to do this is
 to change the outbound channels to have a buffer.  A buffer can hold a fixed
 number of values; send operations complete immediately if there's room in the
 buffer:
-
+```
         c := make(chan int, 2) // buffer size 2
         c <- 1  // succeeds immediately
         c <- 2  // succeeds immediately
         c <- 3  // blocks until another goroutine does <-c and receives 1
-
+```
 When the number of values to be sent is known at channel creation time, a buffer
 can simplify the code.  For example, we can rewrite `gen` to copy the list of
 integers into a buffered channel and avoid creating a new goroutine:
@@ -246,7 +246,25 @@ the values they're trying it send.  It does so by sending values on a
 channel called `done`.  It sends two values since there are
 potentially two blocked senders:
 
-.code pipelines/sqdone1.go /func main/,/^}/
+```golang
+func main() {
+	in := gen(2, 3)
+
+	// Distribute the sq work across two goroutines that both read from in.
+	c1 := sq(in)
+	c2 := sq(in)
+
+	// Consume the first value from output.
+	done := make(chan struct{}, 2) // HL
+	out := merge(done, c1, c2)
+	fmt.Println(<-out) // 4 or 9
+
+	// Tell the remaining senders we're leaving.
+	done <- struct{}{} // HL
+	done <- struct{}{} // HL
+}
+```
+[`Смотри исходный код`](https://github.com/Konstantin8105/Go-pipelines/blob/master/pipelines/sqdone1.go)
 
 The sending goroutines replace their send operation with a `select` statement
 that proceeds either when the send on `out` happens or when they receive a value
@@ -256,7 +274,40 @@ be abandoned.  The `output` goroutines continue looping on their inbound
 channel, `c`, so the upstream stages are not blocked. (We'll discuss in a moment
 how to allow this loop to return early.)
 
-.code pipelines/sqdone1.go /func merge/,/unchanged/
+```golang
+func merge(done <-chan struct{}, cs ...<-chan int) <-chan int {
+	var wg sync.WaitGroup
+	out := make(chan int)
+
+	// Start an output goroutine for each input channel in cs.  output
+	// copies values from c to out until c is closed or it receives a value
+	// from done, then output calls wg.Done.
+	output := func(c <-chan int) {
+		for n := range c {
+			select {
+			case out <- n:
+			case <-done: // HL
+			}
+		}
+		wg.Done()
+	}
+	// ... the rest is unchanged ...
+
+	wg.Add(len(cs))
+	for _, c := range cs {
+		go output(c)
+	}
+
+	// Start a goroutine to close out once all the output goroutines are
+	// done.  This must start after the wg.Add call.
+	go func() {
+		wg.Wait()
+		close(out)
+	}()
+	return out
+}
+```
+[`Смотри исходный код`](https://github.com/Konstantin8105/Go-pipelines/blob/master/pipelines/sqdone1.go)
 
 This approach has a problem: _each_ downstream receiver needs to know the number
 of potentially blocked upstream senders and arrange to signal those senders on
@@ -274,7 +325,28 @@ the senders.  We extend _each_ of our pipeline functions to accept
 `defer` statement, so that all return paths from `main` will signal
 the pipeline stages to exit.
 
-.code pipelines/sqdone3.go /func main/,/^}/
+```golang
+func main() {
+	// Set up a done channel that's shared by the whole pipeline,
+	// and close that channel when this pipeline exits, as a signal
+	// for all the goroutines we started to exit.
+	done := make(chan struct{}) // HL
+	defer close(done)           // HL
+
+	in := gen(done, 2, 3)
+
+	// Distribute the sq work across two goroutines that both read from in.
+	c1 := sq(done, in)
+	c2 := sq(done, in)
+
+	// Consume the first value from output.
+	out := merge(done, c1, c2)
+	fmt.Println(<-out) // 4 or 9
+
+	// done will be closed by the deferred call. // HL
+}
+```
+[`Смотри исходный код`](https://github.com/Konstantin8105/Go-pipelines/blob/master/pipelines/sqdone3.go)
 
 Each of our pipeline stages is now free to return as soon as `done` is closed.
 The `output` routine in `merge` can return without draining its inbound channel,
@@ -282,12 +354,62 @@ since it knows the upstream sender, `sq`, will stop attempting to send when
 `done` is closed.  `output` ensures `wg.Done` is called on all return paths via
 a `defer` statement:
 
-.code pipelines/sqdone3.go /func merge/,/unchanged/
+```golang
+func merge(done <-chan struct{}, cs ...<-chan int) <-chan int {
+	var wg sync.WaitGroup
+	out := make(chan int)
+
+	// Start an output goroutine for each input channel in cs.  output
+	// copies values from c to out until c or done is closed, then calls
+	// wg.Done.
+	output := func(c <-chan int) {
+		defer wg.Done() // HL
+		for n := range c {
+			select {
+			case out <- n:
+			case <-done:
+				return // HL
+			}
+		}
+	}
+	// ... the rest is unchanged ...
+
+	wg.Add(len(cs))
+	for _, c := range cs {
+		go output(c)
+	}
+
+	// Start a goroutine to close out once all the output goroutines are
+	// done.  This must start after the wg.Add call.
+	go func() {
+		wg.Wait()
+		close(out)
+	}()
+	return out
+}
+```
+[`Смотри исходный код`](https://github.com/Konstantin8105/Go-pipelines/blob/master/pipelines/sqdone3.go)
 
 Similarly, `sq` can return as soon as `done` is closed.  `sq` ensures its `out`
 channel is closed on all return paths via a `defer` statement:
 
-.code pipelines/sqdone3.go /func sq/,/^}/
+```golang
+func sq(done <-chan struct{}, in <-chan int) <-chan int {
+	out := make(chan int)
+	go func() {
+		defer close(out) // HL
+		for n := range in {
+			select {
+			case out <- n * n:
+			case <-done:
+				return // HL
+			}
+		}
+	}()
+	return out
+}
+```
+[`Смотри исходный код`](https://github.com/Konstantin8105/Go-pipelines/blob/master/pipelines/sqdone3.go)
 
 Here are the guidelines for pipeline construction:
 
@@ -322,13 +444,55 @@ directory, sorted by path name.
 The main function of our program invokes a helper function `MD5All`, which
 returns a map from path name to digest value, then sorts and prints the results:
 
-.code pipelines/serial.go /func main/,/^}/
+```golang
+func main() {
+	// Calculate the MD5 sum of all files under the specified directory,
+	// then print the results sorted by path name.
+	m, err := MD5All(os.Args[1]) // HL
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	var paths []string
+	for path := range m {
+		paths = append(paths, path)
+	}
+	sort.Strings(paths) // HL
+	for _, path := range paths {
+		fmt.Printf("%x  %s\n", m[path], path)
+	}
+}
+```
+[`Смотри исходный код`](https://github.com/Konstantin8105/Go-pipelines/blob/master/pipelines/serial.go)
 
 The `MD5All` function is the focus of our discussion.  In
 [[pipelines/serial.go][serial.go]], the implementation uses no concurrency and
 simply reads and sums each file as it walks the tree.
 
-.code pipelines/serial.go /MD5All/,/^}/
+```golang
+func MD5All(root string) (map[string][md5.Size]byte, error) {
+	m := make(map[string][md5.Size]byte)
+	err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error { // HL
+		if err != nil {
+			return err
+		}
+		if !info.Mode().IsRegular() {
+			return nil
+		}
+		data, err := ioutil.ReadFile(path) // HL
+		if err != nil {
+			return err
+		}
+		m[path] = md5.Sum(data) // HL
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+```
+[`Смотри исходный код`](https://github.com/Konstantin8105/Go-pipelines/blob/master/pipelines/serial.go)
 
 ## Parallel digestion
 
@@ -336,19 +500,93 @@ In [[pipelines/parallel.go][parallel.go]], we split `MD5All` into a two-stage
 pipeline.  The first stage, `sumFiles`, walks the tree, digests each file in
 a new goroutine, and sends the results on a channel with value type `result`:
 
-.code pipelines/parallel.go /type result/,/}/  HLresult
+```golang
+// A result is the product of reading and summing a file using MD5.
+type result struct {
+	path string
+	sum  [md5.Size]byte
+	err  error
+}
+```
+[`Смотри исходный код`](https://github.com/Konstantin8105/Go-pipelines/blob/master/pipelines/parallel.go)
 
 `sumFiles` returns two channels: one for the `results` and another for the error
 returned by `filepath.Walk`.  The walk function starts a new goroutine to
 process each regular file, then checks `done`.  If `done` is closed, the walk
 stops immediately:
 
-.code pipelines/parallel.go /func sumFiles/,/^}/
+```golang
+func sumFiles(done <-chan struct{}, root string) (<-chan result, <-chan error) {
+	// For each regular file, start a goroutine that sums the file and sends
+	// the result on c.  Send the result of the walk on errc.
+	c := make(chan result)
+	errc := make(chan error, 1)
+	go func() { // HL
+		var wg sync.WaitGroup
+		err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
+			if err != nil {
+				return err
+			}
+			if !info.Mode().IsRegular() {
+				return nil
+			}
+			wg.Add(1)
+			go func() { // HL
+				data, err := ioutil.ReadFile(path)
+				select {
+				case c <- result{path, md5.Sum(data), err}: // HL
+				case <-done: // HL
+				}
+				wg.Done()
+			}()
+			// Abort the walk if done is closed.
+			select {
+			case <-done: // HL
+				return errors.New("walk canceled")
+			default:
+				return nil
+			}
+		})
+		// Walk has returned, so all calls to wg.Add are done.  Start a
+		// goroutine to close c once all the sends are done.
+		go func() { // HL
+			wg.Wait()
+			close(c) // HL
+		}()
+		// No select needed here, since errc is buffered.
+		errc <- err // HL
+	}()
+	return c, errc
+}
+```
+[`Смотри исходный код`](https://github.com/Konstantin8105/Go-pipelines/blob/master/pipelines/parallel.go)
 
 `MD5All` receives the digest values from `c`.  `MD5All` returns early on error,
 closing `done` via a `defer`:
 
-.code pipelines/parallel.go /func MD5All/,/^}/  HLdone
+```golang
+func MD5All(root string) (map[string][md5.Size]byte, error) {
+	// MD5All closes the done channel when it returns; it may do so before
+	// receiving all the values from c and errc.
+	done := make(chan struct{}) // HLdone
+	defer close(done)           // HLdone
+
+	c, errc := sumFiles(done, root) // HLdone
+
+	m := make(map[string][md5.Size]byte)
+	for r := range c { // HLrange
+		if r.err != nil {
+			return nil, r.err
+		}
+		m[r.path] = r.sum
+	}
+	if err := <-errc; err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+```
+[`Смотри исходный код`](https://github.com/Konstantin8105/Go-pipelines/blob/master/pipelines/parallel.go)
 
 ## Bounded parallelism
 
@@ -364,18 +602,72 @@ collect the digests.
 
 The first stage, `walkFiles`, emits the paths of regular files in the tree:
 
-.code pipelines/bounded.go /func walkFiles/,/^}/
+```golang
+func walkFiles(done <-chan struct{}, root string) (<-chan string, <-chan error) {
+	paths := make(chan string)
+	errc := make(chan error, 1)
+	go func() { // HL
+		// Close the paths channel after Walk returns.
+		defer close(paths) // HL
+		// No select needed for this send, since errc is buffered.
+		errc <- filepath.Walk(root, func(path string, info os.FileInfo, err error) error { // HL
+			if err != nil {
+				return err
+			}
+			if !info.Mode().IsRegular() {
+				return nil
+			}
+			select {
+			case paths <- path: // HL
+			case <-done: // HL
+				return errors.New("walk canceled")
+			}
+			return nil
+		})
+	}()
+	return paths, errc
+}
+```
+[`Смотри исходный код`](https://github.com/Konstantin8105/Go-pipelines/blob/master/pipelines/bounded.go)
 
 The middle stage starts a fixed number of `digester` goroutines that receive
 file names from `paths` and send `results` on channel `c`:
 
-.code pipelines/bounded.go /func digester/,/^}/ HLpaths
+```golang
+func digester(done <-chan struct{}, paths <-chan string, c chan<- result) {
+	for path := range paths { // HLpaths
+		data, err := ioutil.ReadFile(path)
+		select {
+		case c <- result{path, md5.Sum(data), err}:
+		case <-done:
+			return
+		}
+	}
+}
+```
+[`Смотри исходный код`](https://github.com/Konstantin8105/Go-pipelines/blob/master/pipelines/bounded.go)
 
 Unlike our previous examples, `digester` does not close its output channel, as
 multiple goroutines are sending on a shared channel.  Instead, code in `MD5All`
 arranges for the channel to be closed when all the `digesters` are done:
 
-.code pipelines/bounded.go /fixed number/,/End of pipeline/ HLc
+```golang
+c := make(chan result) // HLc
+var wg sync.WaitGroup
+const numDigesters = 20
+wg.Add(numDigesters)
+for i := 0; i < numDigesters; i++ {
+    go func() {
+        digester(done, paths, c) // HLc
+        wg.Done()
+    }()
+}
+go func() {
+    wg.Wait()
+    close(c) // HLc
+}()
+```
+[`Смотри исходный код`](https://github.com/Konstantin8105/Go-pipelines/blob/master/pipelines/bounded.go)
 
 We could instead have each digester create and return its own output
 channel, but then we would need additional goroutines to fan-in the
@@ -385,7 +677,21 @@ The final stage receives all the `results` from `c` then checks the
 error from `errc`.  This check cannot happen any earlier, since before
 this point, `walkFiles` may block sending values downstream:
 
-.code pipelines/bounded.go /m := make/,/^}/ HLerrc
+```golang
+m := make(map[string][md5.Size]byte)
+for r := range c {
+    if r.err != nil {
+        return nil, r.err
+    }
+    m[r.path] = r.sum
+}
+// Check whether the Walk failed.
+if err := <-errc; err != nil { // HLerrc
+    return nil, err
+}
+return m, nil
+```
+[`Смотри исходный код`](https://github.com/Konstantin8105/Go-pipelines/blob/master/pipelines/bounded.go)
 
 ## Conclusion
 
