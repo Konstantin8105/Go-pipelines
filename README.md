@@ -55,7 +55,7 @@ func gen(nums ...int) <-chan int {
 	return out
 }
 ```
-*[Смотри исходный код](https://github.com/Konstantin8105/Go-pipelines/blob/master/pipelines/square.go)*
+[`Смотри исходный код`](https://github.com/Konstantin8105/Go-pipelines/blob/master/pipelines/square.go)
 
 The second stage, `sq`, receives integers from a channel and returns a
 channel that emits the square of each received integer.  After the
@@ -74,7 +74,7 @@ func sq(in <-chan int) <-chan int {
 	return out
 }
 ```
-*[Смотри исходный код](https://github.com/Konstantin8105/Go-pipelines/blob/master/pipelines/square.go)*
+[`Смотри исходный код`](https://github.com/Konstantin8105/Go-pipelines/blob/master/pipelines/square.go)
 
 The `main` function sets up the pipeline and runs the final stage: it receives
 values from the second stage and prints each one, until the channel is closed:
