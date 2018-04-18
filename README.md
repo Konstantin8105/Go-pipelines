@@ -111,9 +111,9 @@ func main() {
 ```
 [`Смотри исходный код`](https://github.com/Konstantin8105/Go-pipelines/blob/master/pipelines/sqfan.go)
 
-The `merge` function converts a list of channels to a single channel by starting a goroutine for each inbound channel that copies the values to the sole outbound channel.  Once all the `output` goroutines have been started, `merge` starts one more goroutine to close the outbound channel after all sends on that channel are done.
+Функция `merge` преобразует список каналов в один канал, запустив горутину для каждого входящего канала, который копирует значения в единственный исходящий канал. Как только все «выходные» горутины были запущены, `merge` запускает еще одну горутину, чтобы закрыть исходящий канал после того, как все отправленные на этом канале будут выполнены.
 
-Sends on a closed channel panic, so it's important to ensure all sends are done before calling close.  The [`sync.WaitGroup`](http://golang.org/pkg/sync/#WaitGroup) type provides a simple way to arrange this synchronization:
+Отправка в закрытый канал приводит к панике, поэтому важно обеспечить, чтобы все посылки были выполнены до вызова. Тип [`sync.WaitGroup`] (http://golang.org/pkg/sync/#WaitGroup) обеспечивает простой способ организовать эту синхронизацию:
 
 ```golang
 // merge receives values from each input channel and sends them on the returned
@@ -147,7 +147,7 @@ func merge(cs ...<-chan int) <-chan int {
 ```
 [`Смотри исходный код`](https://github.com/Konstantin8105/Go-pipelines/blob/master/pipelines/sqfan.go)
 
-## Stopping short
+## Внезапная остановка
 
 There is a pattern to our pipeline functions:
 
